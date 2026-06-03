@@ -7,6 +7,11 @@ CORS(app)
 
 @app.route('/')
 def home():
+    return render_template('index.html')
+
+# 這是點擊按鈕後會去的遊戲頁面
+@app.route('/game')
+def game():
     return render_template('main.html')
 
 @app.route('/api/analyze', methods=['POST'])

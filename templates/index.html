@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一筆畫修復互動遊戲 - 首頁</title>
+    <style>
+        body {
+            font-family: "微軟正黑體", sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .container {
+            background: white;
+            padding: 50px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            max-width: 600px;
+        }
+        h1 { color: #333; font-size: 2.5em; margin-bottom: 10px; }
+        .subtitle { color: #007bff; font-weight: bold; margin-bottom: 20px; font-size: 1.2em; }
+        .description { color: #666; line-height: 1.6; margin-bottom: 40px; text-align: left; }
+        .start-btn {
+            background-color: #28a745;
+            color: white;
+            padding: 15px 40px;
+            font-size: 1.2em;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-block;
+        }
+        .start-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+            background-color: #218838;
+        }
+        .authors { margin-top: 30px; font-size: 0.9em; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>一筆畫修復互動遊戲</h1>
+        <div class="subtitle">基於多重圖擴充與匹配演算法</div>
+        
+        <div class="description">
+            <p>歡迎來到一筆畫修復挑戰！這是一個結合圖論演算法的互動平台。</p>
+            <p>🎯 <b>您的任務：</b><br>
+            觀察畫面上的節點與連線，運用您的邏輯新增或刪除邊，最終達成「完美匹配」、「尤拉迴圈」與「漢米爾頓迴圈」的三重挑戰！</p>
+        </div>
+
+        <a href="/game" class="start-btn">🚀 開始修復圖形</a>
+        
+        <div class="authors">專題成員: 黃恩皙、方尚維、蘇仲威</div>
+    </div>
+</body>
+</html>
