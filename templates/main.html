@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>一筆畫修復互動遊戲</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         body { font-family: "微軟正黑體", sans-serif; background-color: #f4f4f9; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         header { text-align: center; margin-bottom: 20px; }
@@ -19,7 +21,8 @@
         #persistent-status { position: absolute; top: 30px; left: 30px; background: rgba(255,255,255,0.9); padding: 10px 15px; border-radius: 8px; border: 2px dashed #ccc; font-weight: bold; font-size: 0.95em; pointer-events: none; }
         .status-done { color: #28a745; }
         .status-pending { color: #dc3545; }
-    </style>
+        /* 新增：計時計步器面板 */
+        #stats-board { position: absolute; top: 30px; right: 270px; background: rgba(255,255,255,0.95); padding: 10px 20px; border-radius: 8px; border: 2px solid #17a2b8; font-weight: bold; font-size: 1.1em; text-align: center; pointer-events: none; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }    </style>
 </head>
 <body>
     <header>
@@ -33,9 +36,17 @@
             尤拉迴圈：<span id="euler-badge" class="status-pending">未完成</span><br>
             漢米爾頓：<span id="hamilton-badge" class="status-pending">未完成</span>
         </div>
-        <canvas id="graphCanvas" width="600" height="580"></canvas>
+        <div id="stats-board">
+            ⏱️ 經過時間：<br><span id="timer-display" style="color: #007bff; font-size: 1.2em;">00:00</span>
+        </div>
+        <canvas id="graphCanvas" width="800" height="580"></canvas>
         <div id="control-panel">
-            <button id="btn-generate" onclick="generateRandomGraph()" style="background-color: #6c757d;">重新產生題目</button>
+            <div style="font-size: 0.9em; font-weight: bold; color: #555; margin-bottom: -5px;">🎲 產生新題目</div>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="generateRandomGraph('easy')" style="background-color: #28a745; flex: 1; padding: 8px 0; font-size: 13px;">簡單<br></button>
+                <button onclick="generateRandomGraph('medium')" style="background-color: #ffc107; color: #000; flex: 1; padding: 8px 0; font-size: 13px;">中等<br></button>
+                <button onclick="generateRandomGraph('hard')" style="background-color: #dc3545; flex: 1; padding: 8px 0; font-size: 13px;">困難<br></button>
+            </div>
             <button id="btn-estimate" onclick="estimateEdges()" style="background-color: #17a2b8;">預估最少邊數</button>
             <button id="btn-complete" onclick="checkCompletion()">完成 (結算)</button>
             <button id="btn-step" onclick="showSteps()">步驟 (提示)</button>
@@ -77,7 +88,19 @@
         let animTimer = null;
 
         let vis = { match: true, euler: true, hamiltonian: true };
+        
+        // --- 計時系統 ---
+        let timerInterval;
+        let timeElapsed = 0;
+        let isGameFinished = false;
 
+        function updateTimer() {
+            if (isGameFinished) return;
+            timeElapsed++;
+            let m = Math.floor(timeElapsed / 60).toString().padStart(2, '0');
+            let s = (timeElapsed % 60).toString().padStart(2, '0');
+            document.getElementById('timer-display').innerText = `${m}:${s}`;
+        }
         function toggleVisibility(type) {
             vis[type] = !vis[type];
             const btn = document.getElementById(`btn-toggle-${type}`);
@@ -86,25 +109,38 @@
             drawGraph();
         }
 
-        function generateRandomGraph() {
-            const numNodes = Math.floor(Math.random() * 6) * 2 + 10;
+        function generateRandomGraph(difficulty = 'medium') {
+            let numNodes;
+            // 根據難度決定節點數量
+            if (difficulty === 'easy') numNodes = Math.floor(Math.random() * 2) * 2 + 6; // 6 或 8 個點
+            else if (difficulty === 'medium') numNodes = Math.floor(Math.random() * 2) * 2 + 10; // 10 或 12 個點
+            else numNodes = Math.floor(Math.random() * 2) * 2 + 14; // 14 或 16 個點
+
             nodes = []; edges = []; eulerPath = []; hamiltonPath = [];
             currentEulerNode = null; currentHamiltonNode = null; selectedActionNode = null; currentMode = null;
             virtualHintEdges = []; stopAnimation();
             document.querySelectorAll('#control-panel button').forEach(btn => btn.classList.remove('active'));
 
+            // 重置並啟動計時與計步
+            clearInterval(timerInterval);
+            timeElapsed = 0; isGameFinished = false;
+            document.getElementById('timer-display').innerText = "00:00";
+            timerInterval = setInterval(updateTimer, 1000);
+
             const padding = 40;
             for (let i = 0; i < numNodes; i++) {
                 nodes.push({ id: i, x: padding + Math.random() * (canvas.width - padding * 2), y: padding + Math.random() * (canvas.height - padding * 2) });
             }
-            const numInitialEdges = Math.floor(numNodes * 1.2);
+            const numInitialEdges = Math.floor(numNodes * 1.3);
             for (let i = 0; i < numInitialEdges; i++) {
                 const source = Math.floor(Math.random() * numNodes);
                 let target = Math.floor(Math.random() * numNodes);
                 while (source === target) target = Math.floor(Math.random() * numNodes);
                 edges.push({ source: source, target: target, type: 'original', isMatched: false });
             }
-            statusBoard.innerHTML = `目前狀態：<span style="color: blue;">已生成 ${numNodes} 個節點的新題目！</span>請選擇右側功能開始修復圖形。`;
+            
+            let diffName = difficulty === 'easy' ? '簡單' : (difficulty === 'medium' ? '中等' : '困難');
+            statusBoard.innerHTML = `目前狀態：<span style="color: blue;">已生成 ${diffName} 難度 (${numNodes} 個節點)！</span><br>計時開始，請選擇功能開始修復。`;
             updatePersistentStatus(); drawGraph();
         }
 
@@ -169,8 +205,8 @@
             document.getElementById('hamilton-badge').className = isHamDone ? 'status-done' : 'status-pending';
             document.getElementById('hamilton-badge').innerText = isHamDone ? '✅ 已完成' : '未完成';
 
-            if (isMatchDone && isEulerDone && isHamDone) {
-                setTimeout(() => { if (confirm("🎉 恭喜！您已成功完成匹配、尤拉與漢米爾頓三重挑戰！\n是否要重新產生新題目？")) generateRandomGraph(); }, 500);
+            if (isMatchDone && isEulerDone && isHamDone && !isGameFinished) {
+                setTimeout(() => { checkCompletion(); }, 500);
             }
         }
 
@@ -527,9 +563,46 @@
 
         function checkCompletion() {
             updatePersistentStatus();
-            if (document.getElementById('match-badge').innerText === '✅ 已完成' && document.getElementById('euler-badge').innerText === '✅ 已完成' && document.getElementById('hamilton-badge').innerText === '✅ 已完成') {
-                statusBoard.innerHTML = "<span style='color: #28a745; font-size: 1.2em; font-weight: bold;'>🏆 結算成功：完美修復三重挑戰！</span>";
-            } else { statusBoard.innerHTML = "<span style='color: orange;'>結算失敗：仍有目標未完成。</span>"; }
+            
+            if (document.getElementById('match-badge').innerText === '✅ 已完成' && 
+                document.getElementById('euler-badge').innerText === '✅ 已完成' && 
+                document.getElementById('hamilton-badge').innerText === '✅ 已完成') {
+                
+                isGameFinished = true;
+                clearInterval(timerInterval); // 停止計時
+
+                // 啟動全螢幕撒花特效
+                var duration = 3 * 1000;
+                var end = Date.now() + duration;
+                (function frame() {
+                    confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 } });
+                    confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 } });
+                    if (Date.now() < end) requestAnimationFrame(frame);
+                }());
+
+                // 計算分數與時間
+                let score = "C";
+                if (timeElapsed <= 60) score = "S (神級修復師)";
+                else if (timeElapsed <= 120) score = "A (專業級)";
+                else if (timeElapsed <= 240) score = "B (熟練級)";
+                else score = "C (達標級)";
+
+                let m = Math.floor(timeElapsed / 60).toString().padStart(2, '0');
+                let s = (timeElapsed % 60).toString().padStart(2, '0');
+
+                // 把分數和時間填進結尾頁面，並顯示出來！
+                document.getElementById('result-time').innerText = `${m} 分 ${s} 秒`;
+                document.getElementById('result-score').innerText = score;
+                document.getElementById('result-screen').style.display = 'flex';
+                
+            } else { 
+                Swal.fire({
+                    title: '尚未完成',
+                    text: '請確認左上角的三個目標都顯示「✅ 已完成」喔！',
+                    icon: 'warning',
+                    confirmButtonText: '繼續努力'
+                });
+            }
         }
 
         async function showSteps() {
@@ -664,5 +737,18 @@
         
         generateRandomGraph();
     </script>
+    <div id="result-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); z-index: 1000; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+        <div style="background: white; padding: 50px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-width: 600px;">
+            <h1 style="color: #333; font-size: 2.5em; margin-bottom: 10px;">🏆 完美修復！</h1>
+            <div style="color: #007bff; font-weight: bold; margin-bottom: 20px; font-size: 1.2em;">恭喜您成功達成三重圖論挑戰</div>
+            
+            <div style="font-size: 1.2em; line-height: 1.6; margin-bottom: 40px; color: #555;">
+                ⏱️ 總耗時：<b id="result-time" style="color: #333;"></b><br><br>
+                🏅 綜合評價：<br><b id="result-score" style="font-size: 1.8em; color: #e83e8c;"></b>
+            </div>
+
+            <a href="/" style="background-color: #28a745; color: white; padding: 15px 40px; font-size: 1.2em; text-decoration: none; border-radius: 50px; font-weight: bold; transition: transform 0.2s, box-shadow 0.2s; display: inline-block;">🏠 回首頁再來一次</a>
+        </div>
+    </div>
 </body>
 </html>
