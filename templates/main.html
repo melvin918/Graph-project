@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一筆畫修復互動遊戲</title>
+    <style>
+        body { font-family: "微軟正黑體", sans-serif; background-color: #f4f4f9; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        header { text-align: center; margin-bottom: 20px; }
+        h1 { color: #333; margin-bottom: 5px; }
+        .authors { color: #666; font-size: 0.9em; }
+        #game-container { display: flex; gap: 20px; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); position: relative; }
+        canvas { background-color: #fafafa; border: 2px solid #ccc; border-radius: 5px; cursor: crosshair; }
+        #control-panel { display: flex; flex-direction: column; gap: 10px; width: 220px; }
+        button { padding: 10px; font-size: 15px; border: none; border-radius: 5px; background-color: #007bff; color: white; cursor: pointer; transition: background-color 0.2s; }
+        button:hover { background-color: #0056b3; }
+        button.active { background-color: #28a745; }
+        #status-board { margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 5px; width: 100%; text-align: center; font-weight: bold; line-height: 1.5; }
+        #persistent-status { position: absolute; top: 30px; left: 30px; background: rgba(255,255,255,0.9); padding: 10px 15px; border-radius: 8px; border: 2px dashed #ccc; font-weight: bold; font-size: 0.95em; pointer-events: none; }
+        .status-done { color: #28a745; }
+        .status-pending { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>基於多重圖擴充與匹配演算法之一筆畫修復互動遊戲</h1>
+        <div class="authors">專題成員: 黃恩皙、方尚維、蘇仲威 </div>
+    </header>
+
+    <div id="game-container">
+        <div id="persistent-status">
+            完美匹配：<span id="match-badge" class="status-pending">未完成</span><br>
+            尤拉迴圈：<span id="euler-badge" class="status-pending">未完成</span><br>
+            漢米爾頓：<span id="hamilton-badge" class="status-pending">未完成</span>
+        </div>
+        <canvas id="graphCanvas" width="600" height="580"></canvas>
+        <div id="control-panel">
+            <button id="btn-generate" onclick="generateRandomGraph()" style="background-color: #6c757d;">重新產生題目</button>
+            <button id="btn-estimate" onclick="estimateEdges()" style="background-color: #17a2b8;">預估最少邊數</button>
+            <button id="btn-complete" onclick="checkCompletion()">完成 (結算)</button>
+            <button id="btn-step" onclick="showSteps()">步驟 (提示)</button>
+            
+            <div style="border-top: 1px solid #ddd; margin: 5px 0;"></div>
+            
+            <button id="btn-add-edge" onclick="setMode('add_edge')">新增邊</button>
+            <button id="btn-del-edge" onclick="setMode('del_edge')">刪除邊</button>
+            <button id="btn-match" onclick="setMode('match')" style="background-color: #198754;">新增匹配邊</button>
+            <button id="btn-del-match" onclick="setMode('del_match')" style="background-color: #198754;">刪除匹配邊</button>
+            <button id="btn-euler" onclick="setMode('euler')" style="background-color: #6f42c1;">新增尤拉軌跡</button>
+            <button id="btn-del-euler" onclick="setMode('del_euler')" style="background-color: #6f42c1;">刪除尤拉軌跡</button>
+            <button id="btn-hamiltonian" onclick="setMode('hamiltonian')" style="background-color: #d63384;">新增漢米爾頓</button>
+            <button id="btn-del-hamiltonian" onclick="setMode('del_hamiltonian')" style="background-color: #d63384;">刪除漢米爾頓</button>
+            
+            <div style="border-top: 2px dashed #ccc; padding-top: 10px; margin-top: 5px; display: flex; flex-direction: column; gap: 8px;">
+                <button id="btn-toggle-match" onclick="toggleVisibility('match')" style="background-color: #28a745; font-size:13px;">隱藏匹配線</button>
+                <button id="btn-toggle-euler" onclick="toggleVisibility('euler')" style="background-color: #6f42c1; font-size:13px;">隱藏尤拉軌跡</button>
+                <button id="btn-toggle-hamiltonian" onclick="toggleVisibility('hamiltonian')" style="background-color: #d63384; font-size:13px;">隱藏漢米爾頓</button>
+            </div>
+        </div>
+    </div>
+    <div id="status-board">目前狀態：請選擇右側功能開始修復圖形。</div>
+
+    <script>
+        const canvas = document.getElementById('graphCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusBoard = document.getElementById('status-board');
+        
+        let nodes = []; let edges = [];
+        let eulerPath = []; let currentEulerNode = null;
+        let hamiltonPath = []; let currentHamiltonNode = null;
+        let currentMode = null; let hintNodes = [];
+        let draggingNode = null; let hasDragged = false;
+        let selectedActionNode = null; 
+        let virtualHintEdges = []; 
+        
+        let animState = { active: false, type: null, currentNode: null, nextNode: null, traversedEdges: [] };
+        let animTimer = null;
+
+        let vis = { match: true, euler: true, hamiltonian: true };
+
+        function toggleVisibility(type) {
+            vis[type] = !vis[type];
+            const btn = document.getElementById(`btn-toggle-${type}`);
+            btn.innerText = vis[type] ? `隱藏${type==='match'?'匹配線':type==='euler'?'尤拉軌跡':'漢米爾頓'}` : `顯示${type==='match'?'匹配線':type==='euler'?'尤拉軌跡':'漢米爾頓'}`;
+            btn.style.backgroundColor = vis[type] ? (type==='match'?'#28a745':type==='euler'?'#6f42c1':'#d63384') : "#6c757d";
+            drawGraph();
+        }
+
+        function generateRandomGraph() {
+            const numNodes = Math.floor(Math.random() * 6) * 2 + 10;
+            nodes = []; edges = []; eulerPath = []; hamiltonPath = [];
+            currentEulerNode = null; currentHamiltonNode = null; selectedActionNode = null; currentMode = null;
+            virtualHintEdges = []; stopAnimation();
+            document.querySelectorAll('#control-panel button').forEach(btn => btn.classList.remove('active'));
+
+            const padding = 40;
+            for (let i = 0; i < numNodes; i++) {
+                nodes.push({ id: i, x: padding + Math.random() * (canvas.width - padding * 2), y: padding + Math.random() * (canvas.height - padding * 2) });
+            }
+            const numInitialEdges = Math.floor(numNodes * 1.2);
+            for (let i = 0; i < numInitialEdges; i++) {
+                const source = Math.floor(Math.random() * numNodes);
+                let target = Math.floor(Math.random() * numNodes);
+                while (source === target) target = Math.floor(Math.random() * numNodes);
+                edges.push({ source: source, target: target, type: 'original', isMatched: false });
+            }
+            statusBoard.innerHTML = `目前狀態：<span style="color: blue;">已生成 ${numNodes} 個節點的新題目！</span>請選擇右側功能開始修復圖形。`;
+            updatePersistentStatus(); drawGraph();
+        }
+
+        async function estimateEdges() {
+            statusBoard.innerHTML = "⏳ 正在精算尤拉與漢米爾頓之絕對最少邊數...";
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nodes: nodes, edges: edges, eulerPath: eulerPath, hamiltonianPath: hamiltonPath })
+                });
+                const result = await response.json();
+                const est = result.estimation;
+                
+                virtualHintEdges = result.optimal_hc_missing_edges || [];
+                
+                let msg = `<div style="text-align:left; display:inline-block; font-size: 0.95em;">`;
+                msg += `<span style="color: #6f42c1; font-weight: bold;">【初始未加邊狀態】</span><br>`;
+                msg += `要達成通關，原始圖形最少需新增 <b style="font-size:1.1em; color:#d63384;">${est.init_total}</b> 條邊。<br>`;
+                msg += `<span style="font-size:0.85em; color:#555;">(包含：尤拉單獨缺 ${est.init_euler} 條 / 匹配單獨缺 ${est.init_match} 條 / 漢米爾頓單獨缺 ${est.init_ham} 條)</span><br><br>`;
+                
+                msg += `<span style="color: #28a745; font-weight: bold;">【目前圖形狀態】</span><br>`;
+                if (est.curr_total === 0) {
+                    msg += `<span style='color:#28a745;'>✅ 目前圖形已完美具備破關條件！</span><br>您總共新增了 <b>${est.user_added}</b> 條邊。請將解答找出來。`;
+                } else {
+                    msg += `您已新增了 <b>${est.user_added}</b> 條邊。<br>最少還需再新增 <b style="font-size:1.1em; color:#dc3545;">${est.curr_total}</b> 條邊！<br>`;
+                    msg += `<span style="font-size:0.85em; color:#555;">(包含：尤拉單獨缺 ${est.curr_euler} 條 / 匹配單獨缺 ${est.curr_match} 條 / 漢米爾頓單獨缺 ${est.curr_ham} 條)</span><br>`;
+                    if (virtualHintEdges.length > 0) {
+                        msg += `<span style="color:#fd7e14;">💡 已為您用橘色虛線標示出「完成漢米爾頓」建議補上的邊。</span><br>`;
+                    }
+                }
+                msg += `</div>`;
+                statusBoard.innerHTML = msg;
+                drawGraph();
+            } catch (error) { statusBoard.innerHTML = "<span style='color: red;'>❌ 連線後端失敗。</span>"; }
+        }
+
+        function updatePersistentStatus() {
+            const matchedEdgesCount = edges.filter(e => e.isMatched).length;
+            const requiredMatches = nodes.length / 2;
+            const matchedDegrees = new Array(nodes.length).fill(0);
+            edges.forEach(e => { if (e.isMatched) { matchedDegrees[e.source]++; matchedDegrees[e.target]++; } });
+            const hasConflict = matchedDegrees.some(d => d > 1);
+
+            let isMatchDone = (matchedEdgesCount === requiredMatches && !hasConflict);
+            document.getElementById('match-badge').className = isMatchDone ? 'status-done' : 'status-pending';
+            document.getElementById('match-badge').innerText = isMatchDone ? '✅ 已完成' : '未完成';
+
+            const degrees = new Array(nodes.length).fill(0);
+            edges.forEach(e => { degrees[e.source]++; degrees[e.target]++; });
+            const hasOddDegree = degrees.some(deg => deg % 2 !== 0);
+            const hasIsolated = degrees.some(deg => deg === 0);
+            
+            let isEulerDone = (!hasOddDegree && !hasIsolated && eulerPath.length > 0 && eulerPath.length === edges.length && eulerPath[0].from === eulerPath[eulerPath.length - 1].to);
+            document.getElementById('euler-badge').className = isEulerDone ? 'status-done' : 'status-pending';
+            document.getElementById('euler-badge').innerText = isEulerDone ? '✅ 已完成' : '未完成';
+
+            let isHamDone = false;
+            if (hamiltonPath.length === nodes.length && hamiltonPath[0].from === hamiltonPath[hamiltonPath.length - 1].to) {
+                const visitedNodes = new Set(hamiltonPath.map(p => p.from));
+                if (visitedNodes.size === nodes.length) isHamDone = true;
+            }
+            document.getElementById('hamilton-badge').className = isHamDone ? 'status-done' : 'status-pending';
+            document.getElementById('hamilton-badge').innerText = isHamDone ? '✅ 已完成' : '未完成';
+
+            if (isMatchDone && isEulerDone && isHamDone) {
+                setTimeout(() => { if (confirm("🎉 恭喜！您已成功完成匹配、尤拉與漢米爾頓三重挑戰！\n是否要重新產生新題目？")) generateRandomGraph(); }, 500);
+            }
+        }
+
+        function findBestEdge(nodeA, nodeB, mode) {
+            const candidates = edges.map((e, idx) => ({...e, idx})).filter(e => (e.source === nodeA.id && e.target === nodeB.id) || (e.source === nodeB.id && e.target === nodeA.id));
+            if (candidates.length === 0) return -1;
+
+            if (mode === 'match') { return (candidates.find(e => !e.isMatched) || candidates[0]).idx; } 
+            else if (mode === 'del_match') { return (candidates.find(e => e.isMatched) || candidates[0]).idx; } 
+            else if (mode === 'del_edge') { const ua = candidates.find(e => e.type === 'user_added'); return ua ? ua.idx : -2; } 
+            else if (mode === 'euler') { const used = eulerPath.map(p => p.edgeIndex); const un = candidates.find(e => !used.includes(e.idx)); return un ? un.idx : -2; } 
+            else if (mode === 'del_euler') { const used = eulerPath.map(p => p.edgeIndex); const u = candidates.find(e => used.includes(e.idx)); return u ? u.idx : -2; }
+            else if (mode === 'hamiltonian') { const used = hamiltonPath.map(p => p.edgeIndex); const un = candidates.find(e => !used.includes(e.idx)); return un ? un.idx : -2; }
+            else if (mode === 'del_hamiltonian') { const used = hamiltonPath.map(p => p.edgeIndex); const u = candidates.find(e => used.includes(e.idx)); return u ? u.idx : -2; }
+            return candidates[0].idx;
+        }
+
+        function getMousePos(canvas, evt) { return { x: evt.offsetX * (canvas.width / canvas.clientWidth), y: evt.offsetY * (canvas.height / canvas.clientHeight) }; }
+
+        function getClickedNode(mouseX, mouseY) {
+            for (let i = 0; i < nodes.length; i++) if (Math.pow(mouseX - nodes[i].x, 2) + Math.pow(mouseY - nodes[i].y, 2) <= 400) return nodes[i];
+            return null;
+        }
+
+        function getClickedEdge(mouseX, mouseY) {
+            let clickedEdgeIndex = -1, minDistance = 12;
+            const edgeGroups = {};
+            edges.forEach((edge, index) => { const key = `${Math.min(edge.source, edge.target)}-${Math.max(edge.source, edge.target)}`; if (!edgeGroups[key]) edgeGroups[key] = []; edgeGroups[key].push({ ...edge, originalIndex: index }); });
+            Object.values(edgeGroups).forEach(group => {
+                group.forEach((edgeData, index) => {
+                    const s = nodes[Math.min(edgeData.source, edgeData.target)], t = nodes[Math.max(edgeData.source, edgeData.target)];
+                    const dx = t.x - s.x, dy = t.y - s.y, dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist === 0) return;
+                    const offset = (index - (group.length - 1) / 2) * 50;
+                    const cpX = (s.x + t.x) / 2 - (dy / dist) * offset, cpY = (s.y + t.y) / 2 + (dx / dist) * offset;
+                    for (let step = 0; step <= 1; step += 0.1) {
+                        const cx = Math.pow(1 - step, 2) * s.x + 2 * (1 - step) * step * cpX + Math.pow(step, 2) * t.x;
+                        const cy = Math.pow(1 - step, 2) * s.y + 2 * (1 - step) * step * cpY + Math.pow(step, 2) * t.y;
+                        if (Math.sqrt(Math.pow(mouseX - cx, 2) + Math.pow(mouseY - cy, 2)) < minDistance) { minDistance = Math.sqrt(Math.pow(mouseX - cx, 2) + Math.pow(mouseY - cy, 2)); clickedEdgeIndex = edgeData.originalIndex; }
+                    }
+                });
+            });
+            return clickedEdgeIndex;
+        }
+
+        canvas.addEventListener('mousedown', (e) => { draggingNode = getClickedNode(getMousePos(canvas, e).x, getMousePos(canvas, e).y); hasDragged = false; });
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(canvas, e);
+            if (draggingNode) { draggingNode.x = pos.x; draggingNode.y = pos.y; hasDragged = true; drawGraph(); return; }
+            if (selectedActionNode && ['add_edge', 'del_edge', 'match', 'del_match', 'euler', 'del_euler', 'hamiltonian', 'del_hamiltonian'].includes(currentMode)) {
+                drawGraph(); ctx.beginPath(); ctx.moveTo(selectedActionNode.x, selectedActionNode.y); ctx.lineTo(pos.x, pos.y);
+                ctx.strokeStyle = 'rgba(0, 123, 255, 0.5)'; ctx.setLineDash([5, 5]); ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+            }
+        });
+        canvas.addEventListener('mouseup', () => { draggingNode = null; });
+
+        canvas.addEventListener('click', (e) => {
+            if (hasDragged) { hasDragged = false; return; }
+            stopAnimation(); 
+            edges.forEach(edge => { delete edge.hintMatch; delete edge.hintRemove; }); hintNodes = []; virtualHintEdges = [];
+
+            const mx = getMousePos(canvas, e).x, my = getMousePos(canvas, e).y;
+            const clickedNode = getClickedNode(mx, my);
+            let targetEdgeIndex = -1;
+
+            if (clickedNode) {
+                if (currentMode === 'euler' || currentMode === 'hamiltonian') {
+                    const isHam = currentMode === 'hamiltonian';
+                    let pathObj = isHam ? hamiltonPath : eulerPath;
+                    let currNode = isHam ? currentHamiltonNode : currentEulerNode;
+
+                    if (pathObj.length === 0 && !currNode) {
+                        if(isHam) { currentHamiltonNode = clickedNode; } else { currentEulerNode = clickedNode; }
+                        statusBoard.innerHTML = `已指定起點 <b>v${clickedNode.id}</b>，請點擊相連的下一個節點或邊。<br><span style="color:#666; font-size:0.85em;">(再點擊一次該起點可取消選擇)</span>`;
+                        drawGraph(); return;
+                    } else if (pathObj.length === 0 && currNode && currNode.id === clickedNode.id) {
+                        if(isHam) { currentHamiltonNode = null; } else { currentEulerNode = null; }
+                        statusBoard.innerHTML = `<span style="color: green;">已取消起點選擇。</span>`;
+                        drawGraph(); return;
+                    } else if (currNode) {
+                        targetEdgeIndex = findBestEdge(currNode, clickedNode, currentMode);
+                        if (targetEdgeIndex === -1) { statusBoard.innerHTML = `<span style="color:red">無法連接！這兩點間沒有邊。</span>`; return; }
+                        if (targetEdgeIndex === -2) { statusBoard.innerHTML = `<span style="color:red">這兩點間的邊都已走過！</span>`; return; }
+                    }
+                } 
+                else if (currentMode === 'del_euler' || currentMode === 'del_hamiltonian') {
+                    const isHam = currentMode === 'del_hamiltonian';
+                    let pathObj = isHam ? hamiltonPath : eulerPath;
+                    const stepIndex = pathObj.findIndex(step => step.from === clickedNode.id);
+                    if (stepIndex !== -1) { 
+                        pathObj.splice(stepIndex); 
+                        if(isHam) currentHamiltonNode = nodes.find(n => n.id === clickedNode.id); else currentEulerNode = nodes.find(n => n.id === clickedNode.id);
+                        statusBoard.innerHTML = `<span style="color: green;">已退回至節點 <b>v${clickedNode.id}</b>。</span>`; 
+                    } 
+                    else if (pathObj.length > 0 && pathObj[0].from === clickedNode.id) { 
+                        if(isHam){ hamiltonPath = []; currentHamiltonNode = nodes.find(n => n.id === clickedNode.id); } else { eulerPath = []; currentEulerNode = nodes.find(n => n.id === clickedNode.id); }
+                        statusBoard.innerHTML = `已退回至起點 <b>v${clickedNode.id}</b>。`; 
+                    } else { statusBoard.innerHTML = `<span style="color: orange;">該節點不在目前的軌跡中！</span>`; }
+                    updatePersistentStatus(); drawGraph(); return;
+                }
+                else {
+                    if (!selectedActionNode) {
+                        selectedActionNode = clickedNode; 
+                        statusBoard.innerHTML = `已選擇 <b>v${clickedNode.id}</b>，請點擊目標節點或邊。<br><span style="color:#666; font-size:0.85em;">(再點擊一次可取消)</span>`;
+                        drawGraph(); return;
+                    } else {
+                        if (selectedActionNode.id === clickedNode.id) { statusBoard.innerHTML = `<span style="color:green">已取消選擇。</span>`; selectedActionNode = null; drawGraph(); return; }
+                        if (currentMode === 'add_edge') { edges.push({ source: selectedActionNode.id, target: clickedNode.id, type: 'user_added', isMatched: false }); statusBoard.innerHTML = `<span style="color: green;">成功新增邊！</span>`; selectedActionNode = null; updatePersistentStatus(); drawGraph(); return; } 
+                        else {
+                            targetEdgeIndex = findBestEdge(selectedActionNode, clickedNode, currentMode);
+                            if (targetEdgeIndex === -1) { statusBoard.innerHTML = `<span style="color:red">這兩個節點之間沒有邊！</span>`; selectedActionNode = null; drawGraph(); return; }
+                            if (targetEdgeIndex === -2) { statusBoard.innerHTML = `<span style="color:red">無法操作！該邊狀態不可刪除或已走過。</span>`; selectedActionNode = null; drawGraph(); return; }
+                            selectedActionNode = null;
+                        }
+                    }
+                }
+            } else {
+                targetEdgeIndex = getClickedEdge(mx, my);
+                if (targetEdgeIndex === -1 && selectedActionNode) { selectedActionNode = null; statusBoard.innerHTML = `<span style="color:green">已取消選擇。</span>`; drawGraph(); return; }
+                selectedActionNode = null;
+            }
+
+            if (targetEdgeIndex !== -1) {
+                const selectedEdge = edges[targetEdgeIndex];
+                if (currentMode === 'del_edge') { if (selectedEdge.type === 'original') statusBoard.innerHTML = `<span style="color: red;">系統邊不可刪除！</span>`; else { edges.splice(targetEdgeIndex, 1); statusBoard.innerHTML = `<span style="color: green;">成功刪除邊！</span>`; } } 
+                else if (currentMode === 'match') { if (selectedEdge.isMatched) statusBoard.innerHTML = `<span style="color: orange;">這條邊已經匹配囉！</span>`; else { selectedEdge.isMatched = true; statusBoard.innerHTML = `<span style="color: green;">成功加入匹配！</span>`; } } 
+                else if (currentMode === 'del_match') { if (!selectedEdge.isMatched) statusBoard.innerHTML = `<span style="color: orange;">這條邊未匹配。</span>`; else { selectedEdge.isMatched = false; statusBoard.innerHTML = `<span style="color: green;">已取消匹配。</span>`; } } 
+                else if (currentMode === 'euler' || currentMode === 'hamiltonian') {
+                    const isHam = currentMode === 'hamiltonian';
+                    let pathObj = isHam ? hamiltonPath : eulerPath;
+                    let currNode = isHam ? currentHamiltonNode : currentEulerNode;
+
+                    if (pathObj.some(step => step.edgeIndex === targetEdgeIndex)) { statusBoard.innerHTML = `<span style="color: red;">這條邊已經走過囉！</span>`; }
+                    else if (selectedEdge.source === currNode.id || selectedEdge.target === currNode.id) {
+                        const nextNodeId = (selectedEdge.source === currNode.id) ? selectedEdge.target : selectedEdge.source;
+                        
+                        if (isHam) {
+                            const isStartNode = nextNodeId === hamiltonPath[0]?.from;
+                            const isVisited = hamiltonPath.some(p => p.to === nextNodeId);
+                            if (isVisited && (!isStartNode || hamiltonPath.length !== nodes.length - 1)) {
+                                statusBoard.innerHTML = `<span style="color: red;">漢米爾頓迴圈不可重複經過同一個節點！</span>`;
+                                updatePersistentStatus(); drawGraph(); return;
+                            }
+                        }
+
+                        pathObj.push({ edgeIndex: targetEdgeIndex, from: currNode.id, to: nextNodeId });
+                        if(isHam) currentHamiltonNode = nodes.find(n => n.id === nextNodeId); else currentEulerNode = nodes.find(n => n.id === nextNodeId);
+                        statusBoard.innerHTML = `<span style="color: green;">前進成功！目前停留在 <b>v${nextNodeId}</b></span>`;
+                    } else { statusBoard.innerHTML = `<span style="color: red;">這條邊沒有連著您目前停留的節點！</span>`; }
+                }
+                else if (currentMode === 'del_euler' || currentMode === 'del_hamiltonian') {
+                    const isHam = currentMode === 'del_hamiltonian';
+                    let pathObj = isHam ? hamiltonPath : eulerPath;
+                    const pathIndex = pathObj.findIndex(step => step.edgeIndex === targetEdgeIndex);
+                    if (pathIndex !== -1) {
+                        pathObj.splice(pathIndex, 1);
+                        if (pathObj.length === 0) { 
+                            if(isHam) currentHamiltonNode = null; else currentEulerNode = null; 
+                            statusBoard.innerHTML = `<span style="color: green;">已退回原點。</span>`; 
+                        } else { 
+                            if(isHam) currentHamiltonNode = nodes.find(n => n.id === pathObj[pathObj.length - 1].to); else currentEulerNode = nodes.find(n => n.id === pathObj[pathObj.length - 1].to); 
+                            statusBoard.innerHTML = `<span style="color: green;">已單獨移除該條軌跡！</span>`; 
+                        }
+                    } else statusBoard.innerHTML = `<span style="color: orange;">這條邊不在軌跡中喔。</span>`;
+                }
+            }
+            updatePersistentStatus(); drawGraph();
+        });
+
+        function stopAnimation() { if (animTimer) clearInterval(animTimer); animState.active = false; }
+        
+        function playAnimation(pathEdges, type) {
+            stopAnimation();
+            if (!pathEdges || pathEdges.length === 0) return;
+            let step = 0, current = pathEdges[0].source;
+            animState = { active: true, type: type, currentNode: null, nextNode: null, traversedEdges: [] };
+            
+            animTimer = setInterval(() => {
+                if(step >= pathEdges.length) { stopAnimation(); statusBoard.innerHTML += `<br><span style="color:#28a745; font-weight:bold;">✅ 動畫展示完畢！</span>`; return; }
+                let edge = pathEdges[step];
+                animState.currentNode = current; 
+                animState.nextNode = (edge.source === current) ? edge.target : edge.source;
+                animState.traversedEdges.push({ source: animState.currentNode, target: animState.nextNode });
+                drawGraph();
+                current = animState.nextNode; step++;
+            }, 800);
+        }
+
+        function drawGraph() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const edgeGroups = {};
+            
+            // 將邊進行分組 (處理多重圖的彎曲計算)
+            edges.forEach((edge, index) => { 
+                const key = `${Math.min(edge.source, edge.target)}-${Math.max(edge.source, edge.target)}`; 
+                if (!edgeGroups[key]) edgeGroups[key] = []; 
+                edgeGroups[key].push({ ...edge, originalIndex: index }); 
+            });
+
+            let traversedCounts = {};
+            if (animState.active && vis[animState.type]) {
+                animState.traversedEdges.forEach(e => { 
+                    const key = `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`; 
+                    traversedCounts[key] = (traversedCounts[key] || 0) + 1; 
+                });
+            }
+
+            // ==========================================
+            // 繪製所有的邊 (Edges)
+            // ==========================================
+            Object.values(edgeGroups).forEach(group => {
+                const key = `${Math.min(group[0].source, group[0].target)}-${Math.max(group[0].source, group[0].target)}`;
+                let animHighlightCount = (animState.active && vis[animState.type]) ? (traversedCounts[key] || 0) : 0;
+
+                group.forEach((edgeData, index) => {
+                    const s = nodes[Math.min(edgeData.source, edgeData.target)], t = nodes[Math.max(edgeData.source, edgeData.target)];
+                    const dx = t.x - s.x, dy = t.y - s.y, dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist === 0) return;
+                    const offset = (index - (group.length - 1) / 2) * 50;
+                    const cpX = (s.x + t.x) / 2 - (dy / dist) * offset, cpY = (s.y + t.y) / 2 + (dx / dist) * offset;
+
+                    ctx.beginPath(); 
+                    ctx.moveTo(s.x, s.y);
+                    if (offset === 0) ctx.lineTo(t.x, t.y); else ctx.quadraticCurveTo(cpX, cpY, t.x, t.y);
+
+                    let isAnimHighlighted = false;
+                    if (animHighlightCount > 0) {
+                        const pathObj = animState.type === 'hamiltonian' ? hamiltonPath : eulerPath;
+                        if (!pathObj.some(step => step.edgeIndex === edgeData.originalIndex)) { isAnimHighlighted = true; animHighlightCount--; }
+                    }
+
+                    let isMatchedVisual = edgeData.isMatched && vis.match;
+                    let isHamVisual = vis.hamiltonian && hamiltonPath.some(step => step.edgeIndex === edgeData.originalIndex);
+                    let isEulerVisual = vis.euler && eulerPath.some(step => step.edgeIndex === edgeData.originalIndex);
+
+                    // 【核心修復】：嚴格定義每一種狀態的顏色、粗細、與虛線樣式
+                    if (isAnimHighlighted) { 
+                        ctx.strokeStyle = animState.type === 'hamiltonian' ? '#e83e8c' : '#f1c40f'; 
+                        ctx.lineWidth = 8; 
+                        ctx.setLineDash([]); 
+                    }
+                    else if (edgeData.hintMatch) { 
+                        ctx.strokeStyle = '#fd7e14'; 
+                        ctx.lineWidth = 6; 
+                        ctx.setLineDash([10, 5]); // 橘色提示虛線
+                    }
+                    else if (edgeData.hintRemove) { 
+                        ctx.strokeStyle = '#dc3545'; 
+                        ctx.lineWidth = 8; 
+                        ctx.setLineDash([5, 5]);  // 紅色警告虛線
+                    }
+                    else if (isHamVisual) { 
+                        ctx.strokeStyle = '#d63384'; 
+                        ctx.lineWidth = 6; 
+                        ctx.setLineDash([]); 
+                    }
+                    else if (isEulerVisual) { 
+                        ctx.strokeStyle = '#6f42c1'; 
+                        ctx.lineWidth = 4; 
+                        ctx.setLineDash([]); 
+                    }
+                    else if (isMatchedVisual) { 
+                        ctx.strokeStyle = '#28a745'; 
+                        ctx.lineWidth = 5; 
+                        ctx.setLineDash([]); 
+                    } 
+                    else { 
+                        ctx.strokeStyle = edgeData.type === 'original' ? '#999' : '#007bff'; 
+                        ctx.lineWidth = 2; 
+                        ctx.setLineDash([]); // 預設邊一定要確保是實線
+                    }
+                    
+                    ctx.stroke(); 
+                    // 【防護機制】：畫完這條線後，馬上把畫筆狀態洗掉，避免污染下一條線
+                    ctx.setLineDash([]); 
+                    ctx.shadowBlur = 0;
+
+                    // 畫軌跡上的數字徽章
+                    const hStep = hamiltonPath.findIndex(step => step.edgeIndex === edgeData.originalIndex);
+                    const eStep = eulerPath.findIndex(step => step.edgeIndex === edgeData.originalIndex);
+                    
+                    let bx = (offset === 0) ? (s.x + t.x)/2 : (0.25 * s.x + 0.5 * cpX + 0.25 * t.x);
+                    let by = (offset === 0) ? (s.y + t.y)/2 : (0.25 * s.y + 0.5 * cpY + 0.25 * t.y);
+
+                    if (vis.hamiltonian && hStep !== -1) {
+                        ctx.beginPath(); ctx.arc(bx, by, 12, 0, Math.PI * 2); ctx.fillStyle = '#d63384'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+                        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((hStep + 1).toString(), bx, by);
+                    } else if (vis.euler && eStep !== -1) {
+                        ctx.beginPath(); ctx.arc(bx, by, 12, 0, Math.PI * 2); ctx.fillStyle = '#6f42c1'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+                        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((eStep + 1).toString(), bx, by);
+                    }
+                });
+            });
+
+            // ==========================================
+            // 繪製虛擬提示邊 (橘色虛線)
+            // ==========================================
+            virtualHintEdges.forEach(vEdge => {
+                const s = nodes.find(n => n.id === vEdge.source), t = nodes.find(n => n.id === vEdge.target);
+                if(s && t) {
+                    ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y);
+                    ctx.strokeStyle = '#fd7e14'; 
+                    ctx.lineWidth = 6; 
+                    ctx.setLineDash([10, 5]);
+                    ctx.stroke(); 
+                    ctx.setLineDash([]); // 畫完馬上洗掉狀態
+                }
+            });
+
+            // ==========================================
+            // 繪製節點 (Nodes)
+            // ==========================================
+            const currentDegrees = new Array(nodes.length).fill(0); 
+            edges.forEach(edge => { currentDegrees[edge.source]++; currentDegrees[edge.target]++; });
+            
+            nodes.forEach(node => {
+                ctx.beginPath(); ctx.arc(node.x, node.y, 19, 0, Math.PI * 2); ctx.fillStyle = '#fafafa'; ctx.fill();
+                
+                // 處理提示發光
+                if (hintNodes.includes(node.id)) { ctx.shadowColor = '#007bff'; ctx.shadowBlur = 20; } 
+                else { ctx.shadowBlur = 0; }
+                
+                ctx.beginPath(); ctx.arc(node.x, node.y, 15, 0, Math.PI * 2); ctx.fillStyle = '#ff6b6b'; ctx.fill(); 
+                ctx.shadowBlur = 0; // 畫完節點主體，馬上把發光洗掉，避免污染邊框
+
+                // 處理節點外框顏色
+                if (animState.active && vis[animState.type] && (node.id === animState.currentNode || node.id === animState.nextNode)) {
+                    ctx.beginPath(); ctx.arc(node.x, node.y, 25, 0, Math.PI * 2); ctx.fillStyle = animState.type === 'hamiltonian' ? 'rgba(232, 62, 140, 0.5)' : 'rgba(241, 196, 15, 0.5)'; ctx.fill();
+                } else if (selectedActionNode && selectedActionNode.id === node.id) { 
+                    ctx.strokeStyle = '#17a2b8'; ctx.lineWidth = 5; ctx.stroke();
+                } else if (vis.hamiltonian && currentHamiltonNode && currentHamiltonNode.id === node.id) { 
+                    ctx.strokeStyle = '#d63384'; ctx.lineWidth = 5; ctx.stroke();
+                } else if (vis.euler && currentEulerNode && currentEulerNode.id === node.id) { 
+                    ctx.strokeStyle = '#ffc107'; ctx.lineWidth = 4; ctx.stroke();
+                } else { 
+                    ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.stroke(); 
+                }
+
+                // 畫節點文字與度數徽章
+                ctx.fillStyle = '#fff'; ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('v' + node.id, node.x, node.y);
+                const deg = currentDegrees[node.id];
+                ctx.beginPath(); ctx.arc(node.x + 14, node.y - 14, 9, 0, Math.PI * 2); ctx.fillStyle = deg % 2 !== 0 ? '#dc3545' : '#28a745'; ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.fillText(deg.toString(), node.x + 14, node.y - 14);
+            });
+        }
+        
+        function setMode(mode) {
+            currentMode = mode; selectedActionNode = null;
+            statusBoard.innerHTML = `目前模式：<b>${mode}</b>。<br>可「直接點擊線條」或「連續點擊兩個節點」。`;
+            document.querySelectorAll('#control-panel button').forEach(btn => btn.classList.remove('active'));
+            if(!mode.startsWith('toggle') && mode !== 'estimate'){ const btn = document.getElementById(`btn-${mode.replace('_', '-')}`); if (btn) btn.classList.add('active'); }
+            drawGraph();
+        }
+
+        function checkCompletion() {
+            updatePersistentStatus();
+            if (document.getElementById('match-badge').innerText === '✅ 已完成' && document.getElementById('euler-badge').innerText === '✅ 已完成' && document.getElementById('hamilton-badge').innerText === '✅ 已完成') {
+                statusBoard.innerHTML = "<span style='color: #28a745; font-size: 1.2em; font-weight: bold;'>🏆 結算成功：完美修復三重挑戰！</span>";
+            } else { statusBoard.innerHTML = "<span style='color: orange;'>結算失敗：仍有目標未完成。</span>"; }
+        }
+
+        async function showSteps() {
+            stopAnimation(); virtualHintEdges = []; hintNodes = [];
+            const degrees = new Array(nodes.length).fill(0); edges.forEach(e => { degrees[e.source]++; degrees[e.target]++; });
+            const oddNodes = nodes.filter(n => degrees[n.id] % 2 !== 0), isolatedNodes = nodes.filter(n => degrees[n.id] === 0);
+
+            if ((currentMode !== 'add_edge' && currentMode !== 'del_edge') && (isolatedNodes.length > 0 || oddNodes.length > 0)) {
+                let msg = `<span style="color: #dc3545; font-size: 1.15em; font-weight: bold;">💡 結構尚不符合定理：</span><br>`;
+                if (isolatedNodes.length > 0) { hintNodes = isolatedNodes.slice(0, 2).map(n => n.id); msg += `❌ 請將<span style="color: #007bff;">發光孤立點</span>連回圖形中。`; } 
+                else { hintNodes = oddNodes.slice(0, 2).map(n => n.id); msg += `❌ 請將<span style="color: #007bff;">發光的奇數點</span>相連轉為偶數。`; }
+                msg += `<br><span style="color:#666; font-size:0.9em;">(點擊畫布任意處可清除發光提示)</span>`;
+                statusBoard.innerHTML = msg; drawGraph(); return;
+            }
+
+            statusBoard.innerHTML = "⏳ 正在請求 Python 後端精算最佳路徑...";
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nodes: nodes, edges: edges, eulerPath: eulerPath, hamiltonianPath: hamiltonPath })
+                });
+                const result = await response.json();
+
+                if (currentMode === 'add_edge' || currentMode === 'del_edge') {
+                    const missingEdges = result.optimal_hc_missing_edges || [];
+                    
+                    if (isolatedNodes.length > 0) hintNodes = isolatedNodes.map(n => n.id);
+                    else if (oddNodes.length > 0) hintNodes = oddNodes.map(n => n.id);
+
+                    if (missingEdges.length > 0) {
+                        statusBoard.innerHTML = `<span style="color: #17a2b8; font-weight: bold;">💡 增修邊建議 (最佳拓撲)：</span><br>為能以「最少邊」完成所有挑戰，建議補上<b style="color:#fd7e14;">橘色虛線</b>的邊。<br><span style="color:#666; font-size:0.9em;">(點擊畫布任意處可清除提示)</span>`;
+                        virtualHintEdges = missingEdges;
+                    } else {
+                        statusBoard.innerHTML = `<span style="color: #28a745; font-weight: bold;">👍 目前圖形拓撲已完美！</span><br>不需要再為漢米爾頓新增邊。`;
+                        if (isolatedNodes.length > 0 || oddNodes.length > 0) {
+                            statusBoard.innerHTML += `<br><span style="color: #dc3545;">(但請注意：您仍需修復<span style="color:#007bff;">發光節點</span>的度數，以滿足尤拉迴圈)</span>`;
+                        }
+                    }
+                    drawGraph();
+                }
+                else if (currentMode === 'hamiltonian' || currentMode === 'del_hamiltonian') {
+                    if (!vis.hamiltonian) toggleVisibility('hamiltonian');
+                    const ham = result.hamilton_info;
+                    
+                    if (ham.scenario === 1) { 
+                        if (ham.has_hamiltonian) {
+                            statusBoard.innerHTML = `<span style="color: #d63384; font-weight: bold;">💡 漢米爾頓動態展示：</span><br>系統為您示範解法！<br><span style="color:#666; font-size:0.9em;">(點擊畫布可中斷動畫)</span>`; 
+                        } else {
+                            statusBoard.innerHTML = `<span style="color: #dc3545; font-weight: bold;">⚠️ 結構缺乏漢米爾頓迴圈！</span><br>建議補上<b style="color:#fd7e14;">橘色虛線</b>的邊，並跟著動畫走：<br><span style="color:#666; font-size:0.9em;">(點擊畫布任意處可清除提示與中斷動畫)</span>`; 
+                            virtualHintEdges = ham.hint_edges || [];
+                        }
+                        playAnimation(ham.path, 'hamiltonian'); 
+                    } 
+                    else if (ham.scenario === 2) {
+                        if (ham.edges_to_remove.length > 0) {
+                            // 【關鍵修復】使用正確的 edgeIndex 屬性對應到 edges 陣列
+                            ham.edges_to_remove.forEach(step => {
+                                if (edges[step.edgeIndex]) {
+                                    edges[step.edgeIndex].hintRemove = true;
+                                }
+                            });
+                            
+                            if (ham.has_hamiltonian) {
+                                statusBoard.innerHTML = `<span style="color: #dc3545; font-weight: bold;">⚠️ 陷入死胡同或非最佳路徑！</span><br>請倒退 <b>${ham.edges_to_remove.length}</b> 步 (已用<b style="color:#dc3545;">紅虛線</b>標示)。<br>退回後可沿著桃粉色軌跡繼續走完！<br><span style="color:#666; font-size:0.9em;">(點擊畫布任意處可清除紅虛線)</span>`;
+                            } else {
+                                statusBoard.innerHTML = `<span style="color: #dc3545; font-weight: bold;">⚠️ 缺乏漢米爾頓迴圈！</span><br>請倒退 <b>${ham.edges_to_remove.length}</b> 步，並補上<b style="color:#fd7e14;">橘色虛線</b>的邊，然後跟著動畫走：<br><span style="color:#666; font-size:0.9em;">(點擊畫布任意處可清除紅虛線)</span>`;
+                                virtualHintEdges = ham.hint_edges || [];
+                            }
+                            
+                            playAnimation(ham.path, 'hamiltonian'); 
+                            drawGraph();
+                        } else { 
+                            if (ham.has_hamiltonian) {
+                                statusBoard.innerHTML = `<span style="color: #28a745; font-weight: bold;">👍 目前方向正確！</span><br>為您動態展示剩餘的推薦走法：<br><span style="color:#666; font-size:0.9em;">(點擊畫布可中斷動畫)</span>`; 
+                            } else {
+                                statusBoard.innerHTML = `<span style="color: #28a745; font-weight: bold;">👍 目前方向正確！</span><br>但缺乏迴圈，請補上<b style="color:#fd7e14;">橘色虛線</b>的邊，並跟著動畫走：<br><span style="color:#666; font-size:0.9em;">(點擊畫布可中斷動畫)</span>`; 
+                                virtualHintEdges = ham.hint_edges || [];
+                            }
+                            playAnimation(ham.path, 'hamiltonian'); 
+                            drawGraph();
+                        }
+                    } else if (ham.scenario === 3) { statusBoard.innerHTML = `<span style="color: #28a745; font-weight: bold;">🏆 漢米爾頓迴圈已完成！</span>`; }
+                }
+                else if (currentMode === 'euler' || currentMode === 'del_euler') {
+                    if (!vis.euler) toggleVisibility('euler');
+                    const euler = result.euler_info;
+                    if (!euler.is_eulerian) { statusBoard.innerHTML = `<span style="color:red;font-weight:bold;">圖形未完全連通！請用新增邊相連。</span>`; return; }
+                    
+                    if (euler.scenario === 1) { 
+                        statusBoard.innerHTML = `<span style="color: #6f42c1; font-weight: bold;">💡 尤拉迴圈動態展示：</span><br>系統為您示範解法！<br><span style="color:#666; font-size:0.9em;">(點擊畫布可中斷動畫)</span>`; 
+                        playAnimation(euler.path, 'euler'); 
+                    } 
+                    else if (euler.scenario === 2) {
+                        if (euler.edges_to_remove.length > 0) {
+                            // 尤拉迴圈同樣確保使用正確的 edgeIndex 屬性
+                            euler.edges_to_remove.forEach(step => {
+                                if (edges[step.edgeIndex]) {
+                                    edges[step.edgeIndex].hintRemove = true;
+                                }
+                            });
+
+                            statusBoard.innerHTML = `<span style="color: #dc3545; font-weight: bold;">⚠️ 提前閉合或受困！</span><br>請倒退 <b>${euler.edges_to_remove.length}</b> 步 (已用<b style="color:#dc3545;">粗紅虛線</b>標示)。<br>退回後可沿著黃金軌跡繼續走完！<br><span style="color:#666; font-size:0.9em;">(點擊畫布任意處可清除紅虛線)</span>`;
+                            
+                            playAnimation(euler.path, 'euler'); 
+                            drawGraph();
+                        } else { 
+                            statusBoard.innerHTML = `<span style="color: #28a745; font-weight: bold;">👍 目前方向正確！</span><br>為您動態展示剩餘的推薦走法：<br><span style="color:#666; font-size:0.9em;">(點擊畫布可中斷動畫)</span>`; 
+                            playAnimation(euler.path, 'euler'); 
+                        }
+                    } else if (euler.scenario === 3) { statusBoard.innerHTML = `<span style="color: #28a745; font-weight: bold;">🏆 尤拉迴圈已完成！</span>`; }
+                } else {
+                    if (!vis.match) toggleVisibility('match');
+                    const matchInfo = result.matching_info;
+                    if (!matchInfo.has_perfect_matching) { statusBoard.innerHTML = `<span style="color:red;font-weight:bold;">目前結構不存在完美匹配，請繼續加邊。</span>`; return; }
+                    
+                    if (matchInfo.scenario === 1) statusBoard.innerHTML = `<span style="color: #28a745; font-weight: bold;">💡 完美匹配提示：</span><br>將以<span style="color: #fd7e14; font-weight: bold;">橘色虛線</span>標示解答。<br><span style="color:#666; font-size:0.9em;">(點擊畫布任意處可清除虛線提示)</span>`;
+                    else if (matchInfo.scenario === 2) {
+                        let msg = `<span style="color: #007bff; font-weight: bold;">💡 匹配動態分析：</span><br>`;
+                        if (matchInfo.edges_to_remove.length > 0) msg += `建議 <b style="color:#dc3545;">刪除 ${matchInfo.edges_to_remove.length} 條</b> 衝突(紅色虛線)的邊，並補上橘色虛線。<br>`;
+                        else msg += `👍 目前方向正確！請繼續補上橘色虛線提示的邊。<br>`;
+                        msg += `<span style="color:#666; font-size:0.9em;">(點擊畫布任意處可清除虛線提示)</span>`;
+                        statusBoard.innerHTML = msg;
+                    } else if (matchInfo.scenario === 3) { statusBoard.innerHTML = `<span style="color: #28a745; font-weight: bold;">🏆 完美匹配已完成！</span>`; return; }
+
+                    matchInfo.hint_edges.forEach(ans => { const e = edges.find(e => !e.isMatched && ((e.source===ans.source && e.target===ans.target) || (e.source===ans.target && e.target===ans.source))); if (e) e.hintMatch = true; });
+                    matchInfo.edges_to_remove.forEach(ans => { const e = edges.find(e => e.isMatched && ((e.source===ans.source && e.target===ans.target) || (e.source===ans.target && e.target===ans.source))); if (e) e.hintRemove = true; });
+                    
+                    drawGraph(); 
+                }
+            } catch (error) { console.error(error); }
+        }
+        
+        generateRandomGraph();
+    </script>
+</body>
+</html>
