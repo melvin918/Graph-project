@@ -50,10 +50,10 @@
         .tag-theory { color: #d9534f; font-weight: bold; }
         .tag-action { color: #0275d8; font-weight: bold; }
         
-        .euler { border-color: #6f42c1; }
-        .euler h2 { color: #6f42c1; }
         .match { border-color: #28a745; }
         .match h2 { color: #28a745; }
+        .euler { border-color: #6f42c1; }
+        .euler h2 { color: #6f42c1; }
         .hamilton { border-color: #e83e8c; }
         .hamilton h2 { color: #e83e8c; }
         
@@ -89,22 +89,22 @@
 <div class="container">
     <h1>目標定理與操作說明</h1>
 
-    <div class="card euler">
-        <h2>📌 目標一：尤拉迴圈 (Eulerian Circuit)</h2>
-        <p><span class="tag-theory">[定理]</span> 根據握手定理，連通圖中若要存在尤拉迴圈，其所有頂點的度數 (Degree) 皆必須為偶數。</p>
-        <p><span class="tag-action">[操作]</span> 需要將畫面上所有的頂點設為偶數，並且透過滑鼠拖曳新增邊線，找出一條路徑可以剛好經過每個邊一次並回到原點。</p>
+    <div class="card match">
+        <h2>📌 目標一：完美匹配 (Perfect Matching)</h2>
+        <p><span class="tag-theory">[定理]</span> 存在一個邊的集合，使得圖中的每一個頂點都恰好與其中一條邊相連，即沒有任何頂點是落單的。</p>
+        <p><span class="tag-action">[操作]</span> 需要將整個圖形的點兩兩進行配對 (也就是選一條邊)，使其沒有落單的點，但玩家須注意，任兩條邊不可共用同一點。</p>
     </div>
 
-    <div class="card match">
-        <h2>📌 目標二：完美匹配 (Perfect Matching)</h2>
-        <p><span class="tag-theory">[定理]</span> 存在一個邊的集合，使得圖中的每一個頂點都恰好與其中一條邊相連，即沒有任何頂點是落單的。</p>
-        <p><span class="tag-action">[操作]</span> 需要將整個圖形的點倆倆進行配對(也就是選一條鞭)，使其沒有烙單的點，但玩家須注意，任兩條邊不可共用同一點。</p>
+    <div class="card euler">
+        <h2>📌 目標二：尤拉迴圈 (Eulerian Circuit)</h2>
+        <p><span class="tag-theory">[定理]</span> 根據握手定理，連通圖中若要存在尤拉迴圈，其所有頂點的度數 (Degree) 皆必須為偶數。</p>
+        <p><span class="tag-action">[操作]</span> 需要將畫面上所有的頂點設為偶數，並且透過滑鼠拖曳新增邊線，找出一條路徑可以剛好經過每個邊一次並回到原點。</p>
     </div>
 
     <div class="card hamilton">
         <h2>📌 目標三：漢米爾頓迴圈 (Hamiltonian Cycle)</h2>
         <p><span class="tag-theory">[定理]</span> 在一個圖形中，從某個頂點出發，經過圖中每個頂點恰好一次，且最終回到起始頂點的封閉路徑。</p>
-        <p><span class="tag-action">[操作]</span> 玩家需要在圖形上找出一條路徑，該路經會剛好經過這張圖的每個頂點一次並回到原點。</p>
+        <p><span class="tag-action">[操作]</span> 玩家需要在圖形上找出一條路徑，該路徑會剛好經過這張圖的每個頂點一次並回到原點。</p>
     </div>
 
     <a href="/game" class="start-btn">🚀 開始挑戰</a>
