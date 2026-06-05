@@ -27,16 +27,8 @@
         .subtitle { color: #007bff; font-weight: bold; margin-bottom: 20px; font-size: 1.2em; }
         .description { color: #666; line-height: 1.6; margin-bottom: 40px; text-align: left; }
         
-        /* 將按鈕用 flex 包裝，讓它們可以漂亮地上下排列或左右排列 */
-        .button-group {
-            display: flex;
-            flex-direction: column;
-            gap: 15px; /* 兩個按鈕之間的間距 */
-            align-items: center;
-        }
-
-        .start-btn {
-            background-color: #28a745;
+        .next-btn {
+            background-color: #007bff;
             color: white;
             padding: 15px 40px;
             font-size: 1.2em;
@@ -45,33 +37,12 @@
             font-weight: bold;
             transition: transform 0.2s, box-shadow 0.2s;
             display: inline-block;
-            width: 200px; /* 統一按鈕寬度 */
         }
-        .start-btn:hover {
+        .next-btn:hover {
             transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
-            background-color: #218838;
+            box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+            background-color: #0056b3;
         }
-        
-        /* 這是新增的教學按鈕的樣式 */
-        .tutorial-btn {
-            background-color: #17a2b8;
-            color: white;
-            padding: 15px 40px;
-            font-size: 1.2em;
-            text-decoration: none;
-            border-radius: 50px;
-            font-weight: bold;
-            transition: transform 0.2s, box-shadow 0.2s;
-            display: inline-block;
-            width: 200px; /* 統一按鈕寬度 */
-        }
-        .tutorial-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4);
-            background-color: #138496;
-        }
-
         .authors { margin-top: 30px; font-size: 0.9em; color: #888; }
     </style>
 </head>
@@ -81,16 +52,11 @@
         <div class="subtitle">基於多重圖擴充與匹配演算法</div>
         
         <div class="description">
-            <p>歡迎來到一筆畫修復挑戰！這是一個結合圖論演算法的互動平台。</p>
-            <p>🎯 <b>您的任務：</b><br>
-            觀察畫面上的節點與連線，運用您的邏輯新增或刪除邊，最終達成「完美匹配」、「尤拉迴圈」與「漢米爾頓迴圈」的三重挑戰！</p>
+            <p>歡迎進入本專題的互動驗證系統。</p>
+            <p>本系統將學術上的「多重圖擴充」、「尤拉迴圈」、「完美匹配」與「漢米爾頓迴圈」等圖論難題，轉化為視覺化的動態修復流程。</p>
         </div>
 
-        <div class="button-group">
-            <a href="/game" class="start-btn">🚀 開始修復圖形</a>
-            
-            <a href="/tutorial" class="tutorial-btn">📖 玩法與圖論教學</a>
-        </div>
+        <a href="/tutorial" class="next-btn">閱讀遊戲說明 ➔</a>
         
         <div class="authors">專題成員: 黃恩皙、方尚維、蘇仲威</div>
     </div>

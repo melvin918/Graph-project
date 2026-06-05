@@ -5,14 +5,17 @@ import networkx as nx
 app = Flask(__name__)
 CORS(app)
 
+# 1. 首頁 (Start Page)
 @app.route('/')
+def index():
+    return render_template('index.html')
+
+# 2. 遊戲說明頁 (Tutorial Page)
 @app.route('/tutorial')
 def tutorial():
     return render_template('tutorial.html')
-def home():
-    return render_template('index.html')
 
-# 這是點擊按鈕後會去的遊戲頁面
+# 3. 遊戲主畫面 (Game Page)
 @app.route('/game')
 def game():
     return render_template('main.html')
