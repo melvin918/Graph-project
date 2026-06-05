@@ -582,10 +582,10 @@
 
                 // 計算分數與時間
                 let score = "C";
-                if (timeElapsed <= 60) score = "S (神級修復師)";
-                else if (timeElapsed <= 120) score = "A (專業級)";
-                else if (timeElapsed <= 240) score = "B (熟練級)";
-                else score = "C (達標級)";
+                if (timeElapsed <= 60) score = "S (你也太猛了吧)";
+                else if (timeElapsed <= 120) score = "A (專業喔)";
+                else if (timeElapsed <= 240) score = "B (好棒喔)";
+                else score = "C (呵 菜就多練)";
 
                 let m = Math.floor(timeElapsed / 60).toString().padStart(2, '0');
                 let s = (timeElapsed % 60).toString().padStart(2, '0');

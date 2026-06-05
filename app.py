@@ -6,6 +6,9 @@ app = Flask(__name__)
 CORS(app)
 
 @app.route('/')
+@app.route('/tutorial')
+def tutorial():
+    return render_template('tutorial.html')
 def home():
     return render_template('index.html')
 

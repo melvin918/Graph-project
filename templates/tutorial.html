@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遊戲規則與圖論教學</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            margin: 0;
+            padding: 40px 20px;
+            color: #333;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            max-width: 800px;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #4a4a4a;
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+        .card {
+            background: #f8f9fa;
+            border-left: 5px solid #007bff;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 0 10px 10px 0;
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateX(5px);
+        }
+        .card h2 {
+            margin-top: 0;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+        }
+        .card.euler { border-color: #6f42c1; }
+        .card.euler h2 { color: #6f42c1; }
+        .card.match { border-color: #28a745; }
+        .card.match h2 { color: #28a745; }
+        .card.hamilton { border-color: #e83e8c; }
+        .card.hamilton h2 { color: #e83e8c; }
+        
+        .mission {
+            background: #fff3cd;
+            border: 2px dashed #ffc107;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+            text-align: center;
+        }
+        .btn-back {
+            display: block;
+            width: 200px;
+            margin: 40px auto 0;
+            padding: 15px;
+            text-align: center;
+            background: #343a40;
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1em;
+            transition: background 0.3s;
+        }
+        .btn-back:hover {
+            background: #23272b;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📖 遊戲規則與圖論科普</h1>
+    <div class="subtitle">在開始修復圖形之前，先來認識你即將挑戰的三大數學難題！</div>
+
+    <div class="card euler">
+        <h2>🟣 尤拉迴圈 (Eulerian Circuit)</h2>
+        <p><b>📝 理論科普：</b><br>這就是著名的「一筆畫問題」。條件是圖形必須完全連通，而且「每一個節點連接的邊數（度數）都必須是偶數」。</p>
+        <p><b>🎮 玩家任務：</b><br>注意畫面上節點旁邊的數字徽章。如果是奇數會顯示「紅色」，偶數會顯示「綠色」。你需要補上邊線，讓所有節點的數字都變成綠色，並畫出一條能一筆畫完的紫色軌跡！</p>
+    </div>
+
+    <div class="card match">
+        <h2>🟢 完美匹配 (Perfect Matching)</h2>
+        <p><b>📝 理論科普：</b><br>想像這是一場舞會，圖上的每個節點都必須找到「唯一」的一個舞伴互相連接，沒有任何人落單，也不能有人同時牽兩個人的手。</p>
+        <p><b>🎮 玩家任務：</b><br>切換到匹配模式，在節點之間畫出「綠色的粗實線」。請確保每一個節點都「恰好」連著一條綠線。如果某個點連了兩條綠線，系統會立刻警告你喔！</p>
+    </div>
+
+    <div class="card hamilton">
+        <h2>🌸 漢米爾頓迴圈 (Hamiltonian Cycle)</h2>
+        <p><b>📝 理論科普：</b><br>這是一道千禧年等級的 NP-Complete 難題！條件是：從某個節點出發，必須經過圖上的「每一個節點恰好一次」，最後回到出發點，不能有遺漏，也不能重複經過。</p>
+        <p><b>🎮 玩家任務：</b><br>畫出桃粉色的連線，想辦法串起圖上所有的點形成一個完美的封閉圓圈。你可以隨時點擊「預估最少邊數」，讓系統的超級大腦幫你算算距離破關還差幾條線！</p>
+    </div>
+
+    <div class="mission">
+        <h2 style="color: #856404; margin-top: 0;">🏆 你的終極目標</h2>
+        <p style="font-size: 1.1em; margin-bottom: 0;">
+            化身為頂尖的圖形修復師！用滑鼠在節點之間<b>「點擊並拖曳」</b>來新增邊線。<br>
+            你必須在最短的時間內，讓左上角的三個徽章同時亮起<b>「✅ 已完成」</b>，即可解鎖最高 S 級評價！<br>
+            <i>(💡 卡關的時候，別忘了善用右下角的「步驟提示」按鈕喔！)</i>
+        </p>
+    </div>
+
+    <a href="/" class="btn-back">🏠 了解！回首頁開始遊戲</a>
+</div>
+
+</body>
+</html>

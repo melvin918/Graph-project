@@ -26,6 +26,15 @@
         h1 { color: #333; font-size: 2.5em; margin-bottom: 10px; }
         .subtitle { color: #007bff; font-weight: bold; margin-bottom: 20px; font-size: 1.2em; }
         .description { color: #666; line-height: 1.6; margin-bottom: 40px; text-align: left; }
+        
+        /* 將按鈕用 flex 包裝，讓它們可以漂亮地上下排列或左右排列 */
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* 兩個按鈕之間的間距 */
+            align-items: center;
+        }
+
         .start-btn {
             background-color: #28a745;
             color: white;
@@ -36,12 +45,33 @@
             font-weight: bold;
             transition: transform 0.2s, box-shadow 0.2s;
             display: inline-block;
+            width: 200px; /* 統一按鈕寬度 */
         }
         .start-btn:hover {
             transform: translateY(-3px);
             box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
             background-color: #218838;
         }
+        
+        /* 這是新增的教學按鈕的樣式 */
+        .tutorial-btn {
+            background-color: #17a2b8;
+            color: white;
+            padding: 15px 40px;
+            font-size: 1.2em;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-block;
+            width: 200px; /* 統一按鈕寬度 */
+        }
+        .tutorial-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4);
+            background-color: #138496;
+        }
+
         .authors { margin-top: 30px; font-size: 0.9em; color: #888; }
     </style>
 </head>
@@ -56,7 +86,11 @@
             觀察畫面上的節點與連線，運用您的邏輯新增或刪除邊，最終達成「完美匹配」、「尤拉迴圈」與「漢米爾頓迴圈」的三重挑戰！</p>
         </div>
 
-        <a href="/game" class="start-btn">🚀 開始修復圖形</a>
+        <div class="button-group">
+            <a href="/game" class="start-btn">🚀 開始修復圖形</a>
+            
+            <a href="/tutorial" class="tutorial-btn">📖 玩法與圖論教學</a>
+        </div>
         
         <div class="authors">專題成員: 黃恩皙、方尚維、蘇仲威</div>
     </div>
